@@ -598,7 +598,12 @@
                 
                 // Version
                 const versionCell = row.insertCell();
-                versionCell.textContent = item.version || 'N/A';
+                let version = item.version || 'N/A';
+                // Shorten version URLs to just show the last part (e.g., /20250901)
+                if (version.includes('/')) {
+                    version = '/' + version.split('/').pop();
+                }
+                versionCell.textContent = version;
                 
                 // Code
                 const codeCell = row.insertCell();
