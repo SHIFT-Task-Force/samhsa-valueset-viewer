@@ -367,6 +367,7 @@
             
             <button id="fetchBtn" onclick="fetchValueSet()">🔍 Fetch ValueSet</button>
             <button class="btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
+            <button class="btn-secondary" onclick="checkAllSizes()">📊 Check All Sizes</button>
         </div>
         
         <div id="loadingDiv" class="loading" style="display: none;">
@@ -781,6 +782,112 @@
                 fetchValueSet();
             }
         });
+        
+        async function checkAllSizes() {
+            const select = document.getElementById('valuesetSelect');
+            const options = Array.from(select.options).filter(opt => opt.value !== '');
+            
+            const loadingDiv = document.getElementById('loadingDiv');
+            const errorDiv = document.getElementById('errorDiv');
+            const resultsDiv = document.getElementById('resultsDiv');
+            const fetchBtn = document.getElementById('fetchBtn');
+            
+            loadingDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            resultsDiv.style.display = 'none';
+            fetchBtn.disabled = true;
+            
+            const results = [];
+            
+            console.log('=== CHECKING ALL VALUESET SIZES ===');
+            console.log('Total ValueSets to check:', options.length);
+            
+            for (let i = 0; i < options.length; i++) {
+                const option = options[i];
+                const oid = option.value;
+                const name = option.textContent;
+                
+                loadingDiv.innerHTML = `<div class="spinner"></div><div>Checking ${i + 1} of ${options.length}: ${name}</div>`;
+                
+                try {
+                    const url = `https://tx.fhir.org/r4/ValueSet/?url=http://cts.nlm.nih.gov/fhir/ValueSet/${oid}&_format=json`;
+                    const response = await fetch(url);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        let valueSet = null;
+                        
+                        if (data.resourceType === 'Bundle' && data.entry && data.entry.length > 0) {
+                            valueSet = data.entry[0].resource;
+                        } else if (data.resourceType === 'ValueSet') {
+                            valueSet = data;
+                        }
+                        
+                        if (valueSet && valueSet.expansion && valueSet.expansion.contains) {
+                            const count = valueSet.expansion.contains.length;
+                            results.push({ oid, name, count });
+                            console.log(`${name}: ${count} codes`);
+                        } else {
+                            results.push({ oid, name, count: 0, error: 'No expansion' });
+                            console.log(`${name}: No expansion found`);
+                        }
+                    } else {
+                        results.push({ oid, name, count: 0, error: `HTTP ${response.status}` });
+                        console.log(`${name}: HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    results.push({ oid, name, count: 0, error: error.message });
+                    console.log(`${name}: Error - ${error.message}`);
+                }
+                
+                // Small delay to avoid overwhelming the server
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            
+            // Sort by count descending
+            results.sort((a, b) => b.count - a.count);
+            
+            console.log('\n=== RESULTS SORTED BY SIZE ===');
+            results.forEach((r, i) => {
+                console.log(`${i + 1}. ${r.name}: ${r.count} codes${r.error ? ` (${r.error})` : ''}`);
+            });
+            
+            // Display results in a table
+            const tableHtml = `
+                <h3 style="margin: 20px 30px 10px;">ValueSet Sizes (Sorted by Count)</h3>
+                <div style="padding: 0 30px 30px; overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                <th style="padding: 12px; text-align: left;">Rank</th>
+                                <th style="padding: 12px; text-align: left;">OID</th>
+                                <th style="padding: 12px; text-align: left;">Name</th>
+                                <th style="padding: 12px; text-align: right;">Code Count</th>
+                                <th style="padding: 12px; text-align: left;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${results.map((r, i) => `
+                                <tr style="border-bottom: 1px solid #dee2e6;">
+                                    <td style="padding: 12px;">${i + 1}</td>
+                                    <td style="padding: 12px;"><code>${r.oid}</code></td>
+                                    <td style="padding: 12px;">${r.name.replace(r.oid + ' - ', '')}</td>
+                                    <td style="padding: 12px; text-align: right; font-weight: bold;">${r.count.toLocaleString()}</td>
+                                    <td style="padding: 12px;">${r.error ? `<span style="color: #dc3545;">${r.error}</span>` : '<span style="color: #28a745;">✓</span>'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = tableHtml;
+            resultsDiv.style.display = 'block';
+            loadingDiv.style.display = 'none';
+            fetchBtn.disabled = false;
+            
+            alert(`Largest ValueSet:\n${results[0].name}\nCode Count: ${results[0].count.toLocaleString()}`);
+        }
     </script>
 </body>
 </html>
