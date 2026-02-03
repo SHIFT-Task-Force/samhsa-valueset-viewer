@@ -407,8 +407,8 @@
                             <th onclick="sortTable(0)">System</th>
                             <th onclick="sortTable(1)">Version</th>
                             <th onclick="sortTable(2)">Code</th>
-                            <th onclick="sortTable(3)">Display</th>
-                            <th onclick="sortTable(4)">Active Status</th>
+                            <th onclick="sortTable(3)">Active Status</th>
+                            <th onclick="sortTable(4)">Display</th>
                         </tr>
                     </thead>
                     <tbody id="tableBody"></tbody>
@@ -611,10 +611,6 @@
                 codeElement.textContent = item.code || 'N/A';
                 codeCell.appendChild(codeElement);
                 
-                // Display
-                const displayCell = row.insertCell();
-                displayCell.textContent = item.display || 'N/A';
-                
                 // Active status
                 const activeCell = row.insertCell();
                 const statusSpan = document.createElement('span');
@@ -629,6 +625,10 @@
                     statusSpan.textContent = 'Unknown';
                 }
                 activeCell.appendChild(statusSpan);
+                
+                // Display
+                const displayCell = row.insertCell();
+                displayCell.textContent = item.display || 'N/A';
             });
         }
         
