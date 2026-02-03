@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAMHSA ValueSet Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+        
+        .controls {
+            padding: 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #495057;
+        }
+        
+        select, input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2em;
+            color: #6c757d;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            margin: 20px;
+            border-radius: 6px;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            padding: 20px;
+            margin: 30px;
+            border-radius: 6px;
+            border: 1px solid #bee5eb;
+        }
+        
+        .info h3 {
+            margin-bottom: 10px;
+        }
+        
+        .table-container {
+            padding: 30px;
+            overflow-x: auto;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .stat-card h4 {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #495057;
+        }
+        
+        .filter-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        th {
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        th:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        th::after {
+            content: ' ⇅';
+            opacity: 0.5;
+        }
+        
+        th.sorted-asc::after {
+            content: ' ▲';
+            opacity: 1;
+        }
+        
+        th.sorted-desc::after {
+            content: ' ▼';
+            opacity: 1;
+        }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .status-active {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-inactive {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-unknown {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+            background: #e2e3e5;
+            color: #383d41;
+        }
+        
+        code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        
+        .export-buttons {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏥 SAMHSA ValueSet Viewer</h1>
+            <p>Explore and analyze FHIR ValueSets from SAMHSA using tx.fhir.org</p>
+        </header>
+        
+        <div class="controls">
+            <div class="form-group">
+                <label for="valuesetSelect">Select a SAMHSA ValueSet:</label>
+                <select id="valuesetSelect">
+                    <option value="">-- Choose a ValueSet --</option>
+                    <option value="2.16.840.1.113762.1.4.1142.1">2.16.840.1.113762.1.4.1142.1 - Alcohol Use Disorders (SNOMEDCD)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.2">2.16.840.1.113762.1.4.1142.2 - Alcohol Use Disorders (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.3">2.16.840.1.113762.1.4.1142.3 - Alcohol Use Disorders (RXNORM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.4">2.16.840.1.113762.1.4.1142.4 - Alcohol Use Disorders (ICD10CD)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.5">2.16.840.1.113762.1.4.1142.5 - Alcohol Use Disorders (LOINC)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.6">2.16.840.1.113762.1.4.1142.6 - Amphetamine Use Disorders (HCPCS)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.7">2.16.840.1.113762.1.4.1142.7 - Amphetamine Use Disorders (ICD10CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.8">2.16.840.1.113762.1.4.1142.8 - Amphetamine Use Disorders (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.9">2.16.840.1.113762.1.4.1142.9 - Amphetamine Use Disorders (LOINC)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.10">2.16.840.1.113762.1.4.1142.10 - Amphetamine Use Disorders (RXNORM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.11">2.16.840.1.113762.1.4.1142.11 - Amphetamine Use Disorders (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.12">2.16.840.1.113762.1.4.1142.12 - Cannabis Use Disorders (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.13">2.16.840.1.113762.1.4.1142.13 - Cannabis Use Disorders (ICD10CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.14">2.16.840.1.113762.1.4.1142.14 - Cannabis Use Disorders (LOINC)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.15">2.16.840.1.113762.1.4.1142.15 - Cannabis Use Disorders (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.16">2.16.840.1.113762.1.4.1142.16 - Cocaine Use Disorder (ICD10CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.17">2.16.840.1.113762.1.4.1142.17 - Cocaine Use Disorder (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.18">2.16.840.1.113762.1.4.1142.18 - Cocaine Use Disorder (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.19">2.16.840.1.113762.1.4.1142.19 - Hallucinogens (ICD10CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.20">2.16.840.1.113762.1.4.1142.20 - Hallucinogens (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.21">2.16.840.1.113762.1.4.1142.21 - Hallucinogens (LOINC)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.22">2.16.840.1.113762.1.4.1142.22 - Hallucinogens (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.23">2.16.840.1.113762.1.4.1142.23 - HIV/AIDS Information (HCPCS)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.24">2.16.840.1.113762.1.4.1142.24 - HIV/AIDS Information (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.25">2.16.840.1.113762.1.4.1142.25 - HIV/AIDS Information (LOINC)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.26">2.16.840.1.113762.1.4.1142.26 - HIV/AIDS Information (RXNORM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.27">2.16.840.1.113762.1.4.1142.27 - HIV/AIDS Information (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.28">2.16.840.1.113762.1.4.1142.28 - Inhalants (ICD10CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.29">2.16.840.1.113762.1.4.1142.29 - Inhalants (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.30">2.16.840.1.113762.1.4.1142.30 - Inhalants (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.32">2.16.840.1.113762.1.4.1142.32 - Mental Health Disorders (ICD10CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.33">2.16.840.1.113762.1.4.1142.33 - Mental Health Disorders (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.34">2.16.840.1.113762.1.4.1142.34 - Mental Health Disorders (LOINC)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.35">2.16.840.1.113762.1.4.1142.35 - Mental Health Disorders (RXNORM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.36">2.16.840.1.113762.1.4.1142.36 - Mental Health Disorders (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.38">2.16.840.1.113762.1.4.1142.38 - Opioids (ICD10CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.39">2.16.840.1.113762.1.4.1142.39 - Opioids (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.40">2.16.840.1.113762.1.4.1142.40 - Opioids (LOINC)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.41">2.16.840.1.113762.1.4.1142.41 - Opioids (RXNORM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.42">2.16.840.1.113762.1.4.1142.42 - Opioids (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.43">2.16.840.1.113762.1.4.1142.43 - Other Psychoactive Substance (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.44">2.16.840.1.113762.1.4.1142.44 - Other Psychoactive Substance (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.45">2.16.840.1.113762.1.4.1142.45 - Other Psychoactive Substance (ICD10CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.46">2.16.840.1.113762.1.4.1142.46 - Sedative Hypnotic (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.47">2.16.840.1.113762.1.4.1142.47 - Sedative Hypnotic (ICD10CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.48">2.16.840.1.113762.1.4.1142.48 - Sedative Hypnotic (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.49">2.16.840.1.113762.1.4.1142.49 - Sexuality and Reproductive Health (ICD9CM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.50">2.16.840.1.113762.1.4.1142.50 - Sexuality and Reproductive Health (RXNORM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.55">2.16.840.1.113762.1.4.1142.55 - Substance Use Information (HCPCS)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.56">2.16.840.1.113762.1.4.1142.56 - Substance Use Information (LOINC)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.57">2.16.840.1.113762.1.4.1142.57 - Substance Use Information (RXNORM)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.59">2.16.840.1.113762.1.4.1142.59 - Opioids (CPT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.60">2.16.840.1.113762.1.4.1142.60 - HIV/AIDS Information (CPT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.65">2.16.840.1.113762.1.4.1142.65 - Test Alcohol Use Disorders (SNOMED-CT)</option>
+                    <option value="2.16.840.1.113762.1.4.1142.67">2.16.840.1.113762.1.4.1142.67 - Test HIV/AIDS Information (SNOMEDCD)</option>
+                </select>
+            </div>
+            
+            <button id="fetchBtn" onclick="fetchValueSet()">🔍 Fetch ValueSet</button>
+            <button class="btn-secondary" onclick="clearResults()">🗑️ Clear Results</button>
+        </div>
+        
+        <div id="loadingDiv" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <div>Loading ValueSet data...</div>
+        </div>
+        
+        <div id="errorDiv" class="error" style="display: none;"></div>
+        
+        <div id="resultsDiv" style="display: none;">
+            <div class="table-container">
+                <div class="export-buttons">
+                    <button onclick="exportToCSV()">📥 Export to CSV</button>
+                    <button onclick="exportToJSON()">📥 Export to JSON</button>
+                </div>
+                
+                <div class="stats" id="statsDiv"></div>
+                
+                <div class="filter-container">
+                    <div class="form-group">
+                        <label for="filterSystem">Filter by System:</label>
+                        <input type="text" id="filterSystem" placeholder="e.g., snomed" onkeyup="filterTable()">
+                    </div>
+                    <div class="form-group">
+                        <label for="filterCode">Filter by Code:</label>
+                        <input type="text" id="filterCode" placeholder="e.g., 123456" onkeyup="filterTable()">
+                    </div>
+                    <div class="form-group">
+                        <label for="filterDisplay">Filter by Display:</label>
+                        <input type="text" id="filterDisplay" placeholder="e.g., disorder" onkeyup="filterTable()">
+                    </div>
+                </div>
+                
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th onclick="sortTable(0)">System</th>
+                            <th onclick="sortTable(1)">Version</th>
+                            <th onclick="sortTable(2)">Code</th>
+                            <th onclick="sortTable(3)">Display</th>
+                            <th onclick="sortTable(4)">Active Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="info">
+            <h3>ℹ️ About This Tool</h3>
+            <p>This tool retrieves and displays expanded FHIR ValueSets from tx.fhir.org. Select a SAMHSA ValueSet from the dropdown above and click "Fetch ValueSet" to view its contents.</p>
+            <p style="margin-top: 10px;"><strong>Features:</strong></p>
+            <ul style="margin-left: 20px; margin-top: 5px;">
+                <li>View all codes in a ValueSet with their system, version, code, display name, and active status</li>
+                <li>Sort by any column by clicking on the column header</li>
+                <li>Filter codes by system, code, or display text</li>
+                <li>Export data to CSV or JSON format</li>
+                <li>View statistics about the ValueSet (total codes, active/inactive counts, systems used)</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        let currentData = [];
+        let sortDirection = {};
+        
+        async function fetchValueSet() {
+            const select = document.getElementById('valuesetSelect');
+            const oid = select.value;
+            
+            if (!oid) {
+                alert('Please select a ValueSet first');
+                return;
+            }
+            
+            const loadingDiv = document.getElementById('loadingDiv');
+            const errorDiv = document.getElementById('errorDiv');
+            const resultsDiv = document.getElementById('resultsDiv');
+            const fetchBtn = document.getElementById('fetchBtn');
+            
+            // Reset displays
+            loadingDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            resultsDiv.style.display = 'none';
+            fetchBtn.disabled = true;
+            
+            const url = `http://tx.fhir.org/r4/ValueSet/?url=http://cts.nlm.nih.gov/fhir/ValueSet/${oid}`;
+            
+            try {
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.resourceType === 'ValueSet' && data.expansion && data.expansion.contains) {
+                    currentData = data.expansion.contains;
+                    displayResults(currentData);
+                    displayStats(currentData, data);
+                    resultsDiv.style.display = 'block';
+                } else {
+                    throw new Error('No expansion data found in the ValueSet response');
+                }
+            } catch (error) {
+                errorDiv.textContent = `Error fetching ValueSet: ${error.message}`;
+                errorDiv.style.display = 'block';
+                console.error('Error:', error);
+            } finally {
+                loadingDiv.style.display = 'none';
+                fetchBtn.disabled = false;
+            }
+        }
+        
+        function displayResults(data) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            data.forEach(item => {
+                const row = tbody.insertRow();
+                
+                // System
+                const systemCell = row.insertCell();
+                systemCell.textContent = item.system || 'N/A';
+                
+                // Version
+                const versionCell = row.insertCell();
+                versionCell.textContent = item.version || 'N/A';
+                
+                // Code
+                const codeCell = row.insertCell();
+                const codeElement = document.createElement('code');
+                codeElement.textContent = item.code || 'N/A';
+                codeCell.appendChild(codeElement);
+                
+                // Display
+                const displayCell = row.insertCell();
+                displayCell.textContent = item.display || 'N/A';
+                
+                // Active status
+                const activeCell = row.insertCell();
+                const statusSpan = document.createElement('span');
+                if (item.inactive === true) {
+                    statusSpan.className = 'status-inactive';
+                    statusSpan.textContent = 'Inactive';
+                } else if (item.inactive === false) {
+                    statusSpan.className = 'status-active';
+                    statusSpan.textContent = 'Active';
+                } else {
+                    statusSpan.className = 'status-unknown';
+                    statusSpan.textContent = 'Unknown';
+                }
+                activeCell.appendChild(statusSpan);
+            });
+        }
+        
+        function displayStats(data, fullData) {
+            const statsDiv = document.getElementById('statsDiv');
+            const totalCodes = data.length;
+            const activeCodes = data.filter(item => item.inactive === false).length;
+            const inactiveCodes = data.filter(item => item.inactive === true).length;
+            const systems = [...new Set(data.map(item => item.system))];
+            
+            statsDiv.innerHTML = `
+                <div class="stat-card">
+                    <h4>Total Codes</h4>
+                    <div class="value">${totalCodes}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Active Codes</h4>
+                    <div class="value">${activeCodes}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Inactive Codes</h4>
+                    <div class="value">${inactiveCodes}</div>
+                </div>
+                <div class="stat-card">
+                    <h4>Code Systems</h4>
+                    <div class="value">${systems.length}</div>
+                </div>
+            `;
+        }
+        
+        function sortTable(columnIndex) {
+            const table = document.getElementById('resultsTable');
+            const thead = table.querySelector('thead');
+            const ths = thead.querySelectorAll('th');
+            
+            // Remove sorted classes from all headers
+            ths.forEach(th => {
+                th.classList.remove('sorted-asc', 'sorted-desc');
+            });
+            
+            const key = columnIndex;
+            const currentDirection = sortDirection[key] || 'none';
+            
+            let newDirection;
+            if (currentDirection === 'none' || currentDirection === 'desc') {
+                newDirection = 'asc';
+            } else {
+                newDirection = 'desc';
+            }
+            
+            sortDirection[key] = newDirection;
+            ths[columnIndex].classList.add(`sorted-${newDirection}`);
+            
+            const multiplier = newDirection === 'asc' ? 1 : -1;
+            
+            const sortedData = [...currentData].sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(columnIndex) {
+                    case 0: // System
+                        aVal = a.system || '';
+                        bVal = b.system || '';
+                        break;
+                    case 1: // Version
+                        aVal = a.version || '';
+                        bVal = b.version || '';
+                        break;
+                    case 2: // Code
+                        aVal = a.code || '';
+                        bVal = b.code || '';
+                        break;
+                    case 3: // Display
+                        aVal = a.display || '';
+                        bVal = b.display || '';
+                        break;
+                    case 4: // Active status
+                        aVal = a.inactive === true ? 2 : (a.inactive === false ? 1 : 3);
+                        bVal = b.inactive === true ? 2 : (b.inactive === false ? 1 : 3);
+                        break;
+                }
+                
+                if (typeof aVal === 'string') {
+                    return multiplier * aVal.localeCompare(bVal);
+                } else {
+                    return multiplier * (aVal - bVal);
+                }
+            });
+            
+            displayResults(sortedData);
+        }
+        
+        function filterTable() {
+            const systemFilter = document.getElementById('filterSystem').value.toLowerCase();
+            const codeFilter = document.getElementById('filterCode').value.toLowerCase();
+            const displayFilter = document.getElementById('filterDisplay').value.toLowerCase();
+            
+            const filteredData = currentData.filter(item => {
+                const systemMatch = !systemFilter || (item.system || '').toLowerCase().includes(systemFilter);
+                const codeMatch = !codeFilter || (item.code || '').toLowerCase().includes(codeFilter);
+                const displayMatch = !displayFilter || (item.display || '').toLowerCase().includes(displayFilter);
+                
+                return systemMatch && codeMatch && displayMatch;
+            });
+            
+            displayResults(filteredData);
+        }
+        
+        function clearResults() {
+            document.getElementById('resultsDiv').style.display = 'none';
+            document.getElementById('errorDiv').style.display = 'none';
+            document.getElementById('valuesetSelect').value = '';
+            document.getElementById('filterSystem').value = '';
+            document.getElementById('filterCode').value = '';
+            document.getElementById('filterDisplay').value = '';
+            currentData = [];
+        }
+        
+        function exportToCSV() {
+            const headers = ['System', 'Version', 'Code', 'Display', 'Active Status'];
+            const rows = currentData.map(item => [
+                item.system || '',
+                item.version || '',
+                item.code || '',
+                item.display || '',
+                item.inactive === true ? 'Inactive' : (item.inactive === false ? 'Active' : 'Unknown')
+            ]);
+            
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+            ].join('\n');
+            
+            downloadFile(csvContent, 'valueset-export.csv', 'text/csv');
+        }
+        
+        function exportToJSON() {
+            const jsonContent = JSON.stringify(currentData, null, 2);
+            downloadFile(jsonContent, 'valueset-export.json', 'application/json');
+        }
+        
+        function downloadFile(content, filename, contentType) {
+            const blob = new Blob([content], { type: contentType });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+        
+        // Allow Enter key to trigger fetch
+        document.getElementById('valuesetSelect').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                fetchValueSet();
+            }
+        });
+    </script>
+</body>
+</html>
