@@ -443,14 +443,52 @@
             
             const url = `http://tx.fhir.org/r4/ValueSet/?url=http://cts.nlm.nih.gov/fhir/ValueSet/${oid}`;
             
+            console.log('=== HTTP REQUEST DETAILS ===');
+            console.log('Request URL:', url);
+            console.log('Request Method: GET');
+            console.log('Request Time:', new Date().toISOString());
+            
             try {
                 const response = await fetch(url);
                 
+                console.log('\n=== HTTP RESPONSE DETAILS ===');
+                console.log('Response Status:', response.status, response.statusText);
+                console.log('Response OK:', response.ok);
+                console.log('Response Headers:');
+                for (let [key, value] of response.headers.entries()) {
+                    console.log(`  ${key}: ${value}`);
+                }
+                
+                // Clone response so we can read it twice
+                const responseClone = response.clone();
+                const responseText = await responseClone.text();
+                
+                console.log('\n=== RAW RESPONSE BODY ===');
+                console.log(responseText);
+                
                 if (!response.ok) {
+                    let errorDetails = `HTTP ${response.status} ${response.statusText}\n\n`;
+                    errorDetails += `Request URL: ${url}\n\n`;
+                    errorDetails += `Response Body:\n${responseText.substring(0, 1000)}${responseText.length > 1000 ? '...(truncated)' : ''}`;
+                    
+                    errorDiv.innerHTML = `
+                        <strong>HTTP Error Details:</strong><br>
+                        <pre style="white-space: pre-wrap; margin-top: 10px; font-family: monospace; max-height: 400px; overflow: auto;">${errorDetails}</pre>
+                    `;
+                    errorDiv.style.display = 'block';
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const data = await response.json();
+                
+                console.log('\n=== PARSED JSON DATA ===');
+                console.log('Resource Type:', data.resourceType);
+                console.log('Has expansion:', !!data.expansion);
+                console.log('Has expansion.contains:', !!(data.expansion && data.expansion.contains));
+                if (data.expansion && data.expansion.contains) {
+                    console.log('Number of codes:', data.expansion.contains.length);
+                }
+                console.log('Full Data Object:', data);
                 
                 if (data.resourceType === 'ValueSet' && data.expansion && data.expansion.contains) {
                     currentData = data.expansion.contains;
@@ -458,11 +496,24 @@
                     displayStats(currentData, data);
                     resultsDiv.style.display = 'block';
                 } else {
+                    let errorDetails = `Response Structure Issue\n\n`;
+                    errorDetails += `Resource Type: ${data.resourceType || 'undefined'}\n`;
+                    errorDetails += `Has expansion: ${!!data.expansion}\n`;
+                    errorDetails += `Has expansion.contains: ${!!(data.expansion && data.expansion.contains)}\n\n`;
+                    errorDetails += `Full Response:\n${JSON.stringify(data, null, 2).substring(0, 2000)}${JSON.stringify(data).length > 2000 ? '...(truncated)' : ''}`;
+                    
+                    errorDiv.innerHTML = `
+                        <strong>Data Structure Error:</strong><br>
+                        <pre style="white-space: pre-wrap; margin-top: 10px; font-family: monospace; max-height: 400px; overflow: auto;">${errorDetails}</pre>
+                    `;
+                    errorDiv.style.display = 'block';
                     throw new Error('No expansion data found in the ValueSet response');
                 }
             } catch (error) {
                 // Display detailed error information
-                let errorMessage = `Error fetching ValueSet: ${error.message}`;
+                let errorMessage = `Error: ${error.message}\n\n`;
+                errorMessage += `Request URL: ${url}\n`;
+                errorMessage += `Time: ${new Date().toISOString()}\n`;
                 
                 // Add more details if available
                 if (error.stack) {
@@ -472,16 +523,21 @@
                 // Check if it's a network error
                 if (!navigator.onLine) {
                     errorMessage += '\n\nNote: You appear to be offline.';
+                } else if (error.name === 'TypeError') {
+                    errorMessage += '\n\nNote: This may be a network error or CORS issue.';
                 }
                 
-                errorDiv.innerHTML = `
-                    <strong>Error Details:</strong><br>
-                    <pre style="white-space: pre-wrap; margin-top: 10px; font-family: monospace;">${errorMessage}</pre>
-                `;
+                if (!errorDiv.innerHTML) {  // Only set if not already set above
+                    errorDiv.innerHTML = `
+                        <strong>Error Details:</strong><br>
+                        <pre style="white-space: pre-wrap; margin-top: 10px; font-family: monospace; max-height: 400px; overflow: auto;">${errorMessage}</pre>
+                    `;
+                }
                 errorDiv.style.display = 'block';
                 
                 // Log full error details to console
-                console.error('Full Error Details:', error);
+                console.error('\n=== ERROR DETAILS ===');
+                console.error('Full Error Object:', error);
                 console.error('Error Name:', error.name);
                 console.error('Error Message:', error.message);
                 console.error('Error Stack:', error.stack);
