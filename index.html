@@ -381,7 +381,6 @@
             <div class="table-container">
                 <div class="export-buttons">
                     <button onclick="exportToCSV()">📥 Export to CSV</button>
-                    <button onclick="exportToJSON()">📥 Export to JSON</button>
                 </div>
                 
                 <div class="stats" id="statsDiv"></div>
@@ -762,11 +761,6 @@
             ].join('\n');
             
             downloadFile(csvContent, 'valueset-export.csv', 'text/csv');
-        }
-        
-        function exportToJSON() {
-            const jsonContent = JSON.stringify(currentData, null, 2);
-            downloadFile(jsonContent, 'valueset-export.json', 'application/json');
         }
         
         function downloadFile(content, filename, contentType) {
