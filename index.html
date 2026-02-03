@@ -483,24 +483,49 @@
                 
                 console.log('\n=== PARSED JSON DATA ===');
                 console.log('Resource Type:', data.resourceType);
-                console.log('Has expansion:', !!data.expansion);
-                console.log('Has expansion.contains:', !!(data.expansion && data.expansion.contains));
-                if (data.expansion && data.expansion.contains) {
-                    console.log('Number of codes:', data.expansion.contains.length);
+                
+                // Handle FHIR Bundle response
+                let valueSet = null;
+                if (data.resourceType === 'Bundle' && data.entry && data.entry.length > 0) {
+                    console.log('Response is a Bundle with', data.entry.length, 'entries');
+                    valueSet = data.entry[0].resource;
+                    console.log('Extracted ValueSet from Bundle entry[0]');
+                } else if (data.resourceType === 'ValueSet') {
+                    console.log('Response is a direct ValueSet');
+                    valueSet = data;
+                } else {
+                    console.log('Unexpected response structure');
+                }
+                
+                if (valueSet) {
+                    console.log('ValueSet Resource Type:', valueSet.resourceType);
+                    console.log('Has expansion:', !!valueSet.expansion);
+                    console.log('Has expansion.contains:', !!(valueSet.expansion && valueSet.expansion.contains));
+                    if (valueSet.expansion && valueSet.expansion.contains) {
+                        console.log('Number of codes:', valueSet.expansion.contains.length);
+                    }
                 }
                 console.log('Full Data Object:', data);
                 
-                if (data.resourceType === 'ValueSet' && data.expansion && data.expansion.contains) {
-                    currentData = data.expansion.contains;
+                if (valueSet && valueSet.resourceType === 'ValueSet' && valueSet.expansion && valueSet.expansion.contains) {
+                    currentData = valueSet.expansion.contains;
                     displayResults(currentData);
-                    displayStats(currentData, data);
+                    displayStats(currentData, valueSet);
                     resultsDiv.style.display = 'block';
                 } else {
                     let errorDetails = `Response Structure Issue\n\n`;
-                    errorDetails += `Resource Type: ${data.resourceType || 'undefined'}\n`;
-                    errorDetails += `Has expansion: ${!!data.expansion}\n`;
-                    errorDetails += `Has expansion.contains: ${!!(data.expansion && data.expansion.contains)}\n\n`;
-                    errorDetails += `Full Response:\n${JSON.stringify(data, null, 2).substring(0, 2000)}${JSON.stringify(data).length > 2000 ? '...(truncated)' : ''}`;
+                    errorDetails += `Response Type: ${data.resourceType || 'undefined'}\n`;
+                    if (data.resourceType === 'Bundle') {
+                        errorDetails += `Bundle entries: ${data.entry ? data.entry.length : 0}\n`;
+                        if (data.entry && data.entry.length > 0) {
+                            errorDetails += `First entry resource type: ${data.entry[0].resource?.resourceType || 'undefined'}\n`;
+                        }
+                    }
+                    if (valueSet) {
+                        errorDetails += `ValueSet has expansion: ${!!valueSet.expansion}\n`;
+                        errorDetails += `ValueSet has expansion.contains: ${!!(valueSet.expansion && valueSet.expansion.contains)}\n`;
+                    }
+                    errorDetails += `\nFull Response:\n${JSON.stringify(data, null, 2).substring(0, 2000)}${JSON.stringify(data).length > 2000 ? '...(truncated)' : ''}`;
                     
                     errorDiv.innerHTML = `
                         <strong>Data Structure Error:</strong><br>
