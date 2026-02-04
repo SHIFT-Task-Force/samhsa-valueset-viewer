@@ -420,12 +420,18 @@
             <p>This tool retrieves and displays expanded FHIR ValueSets from tx.fhir.org. Select a SAMHSA ValueSet from the dropdown above and click "Fetch ValueSet" to view its contents.</p>
             <p style="margin-top: 10px;"><strong>Features:</strong></p>
             <ul style="margin-left: 20px; margin-top: 5px;">
-                <li>View all codes in a ValueSet with their system, version, code, display name, and active status</li>
+                <li>View all codes in a ValueSet with their system, version (shortened for readability), code, active status, and display name</li>
                 <li>Sort by any column by clicking on the column header</li>
                 <li>Filter codes by system, code, or display text</li>
-                <li>Export data to CSV or JSON format</li>
+                <li>Export data to CSV format</li>
                 <li>View statistics about the ValueSet (total codes, active/inactive counts, systems used)</li>
+                <li>Compare all ValueSets to find the largest one using "Check All Sizes"</li>
+                <li>Detailed error logging in browser console for troubleshooting</li>
+                <li>Handles both FHIR Bundle and direct ValueSet responses</li>
             </ul>
+            <p style="margin-top: 15px; font-size: 0.9em; color: #6c757d;">
+                <strong>Technical Details:</strong> This application was developed by GitHub Copilot (Claude Sonnet 4.5) to provide an intuitive interface for exploring SAMHSA FHIR ValueSets. It uses the tx.fhir.org FHIR terminology server to retrieve ValueSet expansions via HTTPS requests with JSON formatting.
+            </p>
         </div>
     </div>
     
