@@ -453,12 +453,14 @@
             const loadingDiv = document.getElementById('loadingDiv');
             const errorDiv = document.getElementById('errorDiv');
             const resultsDiv = document.getElementById('resultsDiv');
+            const sizesDiv = document.getElementById('sizesDiv');
             const fetchBtn = document.getElementById('fetchBtn');
             
             // Reset displays
             loadingDiv.style.display = 'block';
             errorDiv.style.display = 'none';
             resultsDiv.style.display = 'none';
+            sizesDiv.style.display = 'none';
             fetchBtn.disabled = true;
             
             const url = `https://tx.fhir.org/r4/ValueSet/?url=http://cts.nlm.nih.gov/fhir/ValueSet/${oid}&_format=json`;
