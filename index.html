@@ -377,6 +377,8 @@
         
         <div id="errorDiv" class="error" style="display: none;"></div>
         
+        <div id="sizesDiv" style="display: none;"></div>
+        
         <div id="resultsDiv" style="display: none;">
             <div class="table-container">
                 <div class="export-buttons">
@@ -795,11 +797,13 @@
             const loadingDiv = document.getElementById('loadingDiv');
             const errorDiv = document.getElementById('errorDiv');
             const resultsDiv = document.getElementById('resultsDiv');
+            const sizesDiv = document.getElementById('sizesDiv');
             const fetchBtn = document.getElementById('fetchBtn');
             
             loadingDiv.style.display = 'block';
             errorDiv.style.display = 'none';
             resultsDiv.style.display = 'none';
+            sizesDiv.style.display = 'none';
             fetchBtn.disabled = true;
             
             const results = [];
@@ -886,8 +890,8 @@
                 </div>
             `;
             
-            resultsDiv.innerHTML = tableHtml;
-            resultsDiv.style.display = 'block';
+            sizesDiv.innerHTML = tableHtml;
+            sizesDiv.style.display = 'block';
             loadingDiv.style.display = 'none';
             fetchBtn.disabled = false;
             
