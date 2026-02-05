@@ -446,7 +446,9 @@
             const oid = select.value;
             
             if (!oid) {
-                alert('Please select a ValueSet first');
+                const errorDiv = document.getElementById('errorDiv');
+                errorDiv.textContent = '⚠ Please select a ValueSet first';
+                errorDiv.style.display = 'block';
                 return;
             }
             
@@ -864,7 +866,14 @@
             });
             
             // Display results in a table
+            const largestMsg = `<div style="background: #d4edda; color: #155724; padding: 15px; margin: 20px 30px; border-radius: 6px; border-left: 4px solid #28a745;">
+                <strong>✓ Analysis Complete!</strong><br>
+                Largest ValueSet: ${results[0].name.replace(results[0].oid + ' - ', '')}<br>
+                Code Count: ${results[0].count.toLocaleString()}
+            </div>`;
+            
             const tableHtml = `
+                ${largestMsg}
                 <h3 style="margin: 20px 30px 10px;">ValueSet Sizes (Sorted by Count)</h3>
                 <div style="padding: 0 30px 30px; overflow-x: auto;">
                     <table style="width: 100%; border-collapse: collapse;">
@@ -896,8 +905,6 @@
             sizesDiv.style.display = 'block';
             loadingDiv.style.display = 'none';
             fetchBtn.disabled = false;
-            
-            alert(`Largest ValueSet:\n${results[0].name}\nCode Count: ${results[0].count.toLocaleString()}`);
         }
     </script>
 </body>
