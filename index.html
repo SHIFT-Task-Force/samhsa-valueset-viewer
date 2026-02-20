@@ -508,19 +508,30 @@
             }
 
             const issueLines = outcome.issue.map((issue, index) => {
-                const codeText = typeof issue?.code === 'object'
-                    ? issue?.code?.text || issue?.code?.display || JSON.stringify(issue.code)
-                    : issue?.code || '';
+                const rawCode = issue?.code;
+                const codePrimitive = typeof rawCode === 'string' ? rawCode : '';
+                const codeObjectText = typeof rawCode === 'object' ? rawCode?.text || '' : '';
+                const codeObjectCode = typeof rawCode === 'object' ? rawCode?.code || '' : '';
+                const codeObjectDisplay = typeof rawCode === 'object' ? rawCode?.display || '' : '';
+                const severity = issue?.severity || '';
                 const diagnostics = issue?.diagnostics || '';
                 const detailsText = issue?.details?.text || '';
-                const text = issue?.code?.text || '';
 
                 const parts = [];
-                if (codeText) {
-                    parts.push(`code: ${codeText}`);
+                if (codePrimitive) {
+                    parts.push(`code: ${codePrimitive}`);
                 }
-                if (text && text !== codeText) {
-                    parts.push(`code.text: ${text}`);
+                if (codeObjectText) {
+                    parts.push(`code.text: ${codeObjectText}`);
+                }
+                if (codeObjectCode) {
+                    parts.push(`code.code: ${codeObjectCode}`);
+                }
+                if (codeObjectDisplay) {
+                    parts.push(`code.display: ${codeObjectDisplay}`);
+                }
+                if (!codePrimitive && !codeObjectText && !codeObjectCode && !codeObjectDisplay && rawCode) {
+                    parts.push(`code: ${JSON.stringify(rawCode)}`);
                 }
                 if (detailsText) {
                     parts.push(`details.text: ${detailsText}`);
@@ -530,7 +541,7 @@
                 }
 
                 return parts.length > 0
-                    ? `Issue ${index + 1}: ${parts.join(' | ')}`
+                    ? `Issue ${index + 1}${severity ? ` [${severity}]` : ''}: ${parts.join(' | ')}`
                     : `Issue ${index + 1}: (no issue details available)`;
             });
 
@@ -547,16 +558,40 @@
             let requestMethod = 'GET';
             let requestUrl = getUrl;
             let getError = null;
+            const getAttempt = {
+                method: 'GET',
+                url: getUrl,
+                status: null,
+                statusText: '',
+                operationOutcomeDetails: '',
+                networkError: ''
+            };
+            let postAttempt = null;
 
             try {
                 response = await fetch(getUrl);
+                getAttempt.status = response.status;
+                getAttempt.statusText = response.statusText;
+                if (!response.ok) {
+                    const getResponseText = await response.clone().text();
+                    getAttempt.operationOutcomeDetails = extractOperationOutcomeDetails(getResponseText);
+                }
             } catch (error) {
                 getError = error;
+                getAttempt.networkError = error.message || String(error);
             }
 
             if (!response || !response.ok) {
                 requestMethod = 'POST';
                 requestUrl = 'https://tx.fhir.org/r4/ValueSet/$expand?_format=json';
+                postAttempt = {
+                    method: 'POST',
+                    url: requestUrl,
+                    status: null,
+                    statusText: '',
+                    operationOutcomeDetails: '',
+                    networkError: ''
+                };
 
                 const parameters = {
                     resourceType: 'Parameters',
@@ -576,13 +611,28 @@
                     },
                     body: JSON.stringify(parameters)
                 });
+                postAttempt.status = response.status;
+                postAttempt.statusText = response.statusText;
+                if (!response.ok) {
+                    const postResponseText = await response.clone().text();
+                    postAttempt.operationOutcomeDetails = extractOperationOutcomeDetails(postResponseText);
+                }
 
                 if (getError) {
                     console.warn('GET $expand failed before fallback to POST:', getError);
                 }
             }
 
-            return { response, requestMethod, requestUrl, valueSetUrl, getUrl };
+            return {
+                response,
+                requestMethod,
+                requestUrl,
+                valueSetUrl,
+                getUrl,
+                fallbackUsed: requestMethod === 'POST',
+                getAttempt,
+                postAttempt
+            };
         }
         
         async function fetchValueSet() {
@@ -627,10 +677,12 @@
                 requestUrl = requestResult.requestUrl;
 
                 setRequestInfo(
-                    requestMethod === 'POST'
-                        ? '⚠ Request fallback used: GET $expand failed, POST $expand succeeded.'
+                    requestResult.fallbackUsed
+                        ? (response.ok
+                            ? '⚠ Request fallback used: GET $expand failed, POST $expand succeeded.'
+                            : '⚠ Request fallback attempted: GET $expand failed, and POST $expand also failed.')
                         : '✓ Request used primary GET $expand method.',
-                    requestMethod === 'POST'
+                    requestResult.fallbackUsed
                 );
 
                 console.log('Final Request URL:', requestUrl);
@@ -655,6 +707,29 @@
                     let errorDetails = `HTTP ${response.status} ${response.statusText}\n\n`;
                     errorDetails += `Request Method: ${requestMethod}\n`;
                     errorDetails += `Request URL: ${requestUrl}\n\n`;
+
+                    if (requestResult.getAttempt) {
+                        errorDetails += `GET Attempt: HTTP ${requestResult.getAttempt.status || 'N/A'} ${requestResult.getAttempt.statusText || ''}\n`;
+                        if (requestResult.getAttempt.networkError) {
+                            errorDetails += `GET Network Error: ${requestResult.getAttempt.networkError}\n`;
+                        }
+                        if (requestResult.getAttempt.operationOutcomeDetails) {
+                            errorDetails += `${requestResult.getAttempt.operationOutcomeDetails}\n`;
+                        }
+                        errorDetails += `\n`;
+                    }
+
+                    if (requestResult.postAttempt) {
+                        errorDetails += `POST Attempt: HTTP ${requestResult.postAttempt.status || 'N/A'} ${requestResult.postAttempt.statusText || ''}\n`;
+                        if (requestResult.postAttempt.networkError) {
+                            errorDetails += `POST Network Error: ${requestResult.postAttempt.networkError}\n`;
+                        }
+                        if (requestResult.postAttempt.operationOutcomeDetails) {
+                            errorDetails += `${requestResult.postAttempt.operationOutcomeDetails}\n`;
+                        }
+                        errorDetails += `\n`;
+                    }
+
                     const operationOutcomeDetails = extractOperationOutcomeDetails(responseText);
                     if (operationOutcomeDetails) {
                         errorDetails += `${operationOutcomeDetails}\n\n`;
@@ -685,9 +760,21 @@
                     valueSet = data;
                 } else if (data.resourceType === 'OperationOutcome') {
                     const operationOutcomeDetails = extractOperationOutcomeDetails(data);
+                    const getOutcome = requestResult.getAttempt?.operationOutcomeDetails || '';
+                    const postOutcome = requestResult.postAttempt?.operationOutcomeDetails || '';
+                    let combinedOutcome = '';
+                    if (getOutcome) {
+                        combinedOutcome += `GET Attempt\n${getOutcome}\n\n`;
+                    }
+                    if (postOutcome) {
+                        combinedOutcome += `POST Attempt\n${postOutcome}\n\n`;
+                    }
+                    if (operationOutcomeDetails) {
+                        combinedOutcome += `Final Response\n${operationOutcomeDetails}`;
+                    }
                     errorDiv.innerHTML = `
                         <strong>OperationOutcome Returned:</strong><br>
-                        <pre style="white-space: pre-wrap; margin-top: 10px; font-family: monospace; max-height: 400px; overflow: auto;">${operationOutcomeDetails || JSON.stringify(data, null, 2)}</pre>
+                        <pre style="white-space: pre-wrap; margin-top: 10px; font-family: monospace; max-height: 400px; overflow: auto;">${combinedOutcome || JSON.stringify(data, null, 2)}</pre>
                     `;
                     errorDiv.style.display = 'block';
                     throw new Error('FHIR OperationOutcome returned instead of ValueSet expansion');
@@ -988,7 +1075,8 @@
             fetchBtn.disabled = true;
             
             const results = [];
-            let fallbackCount = 0;
+            let fallbackUsedCount = 0;
+            let fallbackSuccessCount = 0;
             
             console.log('=== CHECKING ALL VALUESET SIZES ===');
             console.log('Total ValueSets to check:', options.length);
@@ -1003,8 +1091,11 @@
                 try {
                     const requestResult = await fetchExpandedValueSet(oid);
                     const response = requestResult.response;
-                    if (requestResult.requestMethod === 'POST') {
-                        fallbackCount++;
+                    if (requestResult.fallbackUsed) {
+                        fallbackUsedCount++;
+                        if (response.ok) {
+                            fallbackSuccessCount++;
+                        }
                     }
                     
                     if (response.ok) {
@@ -1084,11 +1175,14 @@
             
             sizesDiv.innerHTML = tableHtml;
             sizesDiv.style.display = 'block';
+            const fallbackFailedCount = fallbackUsedCount - fallbackSuccessCount;
             setRequestInfo(
-                fallbackCount > 0
-                    ? `⚠ Check All Sizes used POST fallback for ${fallbackCount} of ${options.length} ValueSets.`
-                    : `✓ Check All Sizes completed using GET $expand for all ${options.length} ValueSets.`,
-                fallbackCount > 0
+                fallbackUsedCount === 0
+                    ? `✓ Check All Sizes completed using GET $expand for all ${options.length} ValueSets.`
+                    : (fallbackFailedCount === 0
+                        ? `⚠ Check All Sizes used POST fallback successfully for ${fallbackSuccessCount} of ${options.length} ValueSets.`
+                        : `⚠ Check All Sizes attempted POST fallback for ${fallbackUsedCount} ValueSets; succeeded for ${fallbackSuccessCount}, failed for ${fallbackFailedCount}.`),
+                fallbackUsedCount > 0
             );
             loadingDiv.style.display = 'none';
             fetchBtn.disabled = false;
