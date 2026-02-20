@@ -148,6 +148,22 @@
             border-radius: 6px;
             border: 1px solid #f5c6cb;
         }
+
+        .request-status {
+            padding: 12px 16px;
+            margin: 20px 30px;
+            border-radius: 6px;
+            border-left: 4px solid #17a2b8;
+            background: #d1ecf1;
+            color: #0c5460;
+            font-size: 0.95em;
+        }
+
+        .request-status-fallback {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+            color: #856404;
+        }
         
         .info {
             background: #d1ecf1;
@@ -386,6 +402,8 @@
         </div>
         
         <div id="errorDiv" class="error" style="display: none;"></div>
+
+        <div id="requestInfoDiv" class="request-status" style="display: none;"></div>
         
         <div id="sizesDiv" style="display: none;"></div>
         
@@ -450,6 +468,75 @@
     <script>
         let currentData = [];
         let sortDirection = {};
+
+        function getValueSetCanonicalUrl(oid) {
+            return `http://cts.nlm.nih.gov/fhir/ValueSet/${oid}`;
+        }
+
+        function getValueSetExpandGetUrl(oid) {
+            const valueSetUrl = getValueSetCanonicalUrl(oid);
+            return `https://tx.fhir.org/r4/ValueSet/$expand?url=${encodeURIComponent(valueSetUrl)}&_format=json`;
+        }
+
+        function setRequestInfo(message, isFallback = false) {
+            const requestInfoDiv = document.getElementById('requestInfoDiv');
+            requestInfoDiv.textContent = message;
+            requestInfoDiv.className = `request-status${isFallback ? ' request-status-fallback' : ''}`;
+            requestInfoDiv.style.display = 'block';
+        }
+
+        function clearRequestInfo() {
+            const requestInfoDiv = document.getElementById('requestInfoDiv');
+            requestInfoDiv.style.display = 'none';
+            requestInfoDiv.textContent = '';
+            requestInfoDiv.className = 'request-status';
+        }
+
+        async function fetchExpandedValueSet(oid) {
+            const valueSetUrl = getValueSetCanonicalUrl(oid);
+            const getUrl = getValueSetExpandGetUrl(oid);
+
+            let response = null;
+            let requestMethod = 'GET';
+            let requestUrl = getUrl;
+            let getError = null;
+
+            try {
+                response = await fetch(getUrl);
+            } catch (error) {
+                getError = error;
+            }
+
+            if (!response || !response.ok) {
+                requestMethod = 'POST';
+                requestUrl = 'https://tx.fhir.org/r4/ValueSet/$expand?_format=json';
+
+                const parameters = {
+                    resourceType: 'Parameters',
+                    parameter: [
+                        {
+                            name: 'url',
+                            valueUri: valueSetUrl
+                        }
+                    ]
+                };
+
+                response = await fetch(requestUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/fhir+json',
+                        'Accept': 'application/fhir+json, application/json'
+                    },
+                    body: JSON.stringify(parameters)
+                });
+
+                if (getError) {
+                    console.warn('GET $expand failed before fallback to POST:', getError);
+                }
+            }
+
+            return { response, requestMethod, requestUrl, valueSetUrl, getUrl };
+        }
         
         async function fetchValueSet() {
             const select = document.getElementById('valuesetSelect');
@@ -473,17 +560,34 @@
             errorDiv.style.display = 'none';
             resultsDiv.style.display = 'none';
             sizesDiv.style.display = 'none';
+            clearRequestInfo();
             fetchBtn.disabled = true;
             
-            const url = `https://tx.fhir.org/r4/ValueSet/?url=http://cts.nlm.nih.gov/fhir/ValueSet/${oid}&_format=json`;
+            const getUrl = getValueSetExpandGetUrl(oid);
+            let requestMethod = 'GET';
+            let requestUrl = getUrl;
             
             console.log('=== HTTP REQUEST DETAILS ===');
-            console.log('Request URL:', url);
-            console.log('Request Method: GET');
+            console.log('Initial Request URL:', getUrl);
+            console.log('Initial Request Method: GET');
+            console.log('Fallback Request Method: POST (if GET fails)');
             console.log('Request Time:', new Date().toISOString());
             
             try {
-                const response = await fetch(url);
+                const requestResult = await fetchExpandedValueSet(oid);
+                const response = requestResult.response;
+                requestMethod = requestResult.requestMethod;
+                requestUrl = requestResult.requestUrl;
+
+                setRequestInfo(
+                    requestMethod === 'POST'
+                        ? '⚠ Request fallback used: GET $expand failed, POST $expand succeeded.'
+                        : '✓ Request used primary GET $expand method.',
+                    requestMethod === 'POST'
+                );
+
+                console.log('Final Request URL:', requestUrl);
+                console.log('Final Request Method:', requestMethod);
                 
                 console.log('\n=== HTTP RESPONSE DETAILS ===');
                 console.log('Response Status:', response.status, response.statusText);
@@ -502,7 +606,8 @@
                 
                 if (!response.ok) {
                     let errorDetails = `HTTP ${response.status} ${response.statusText}\n\n`;
-                    errorDetails += `Request URL: ${url}\n\n`;
+                    errorDetails += `Request Method: ${requestMethod}\n`;
+                    errorDetails += `Request URL: ${requestUrl}\n\n`;
                     errorDetails += `Response Body:\n${responseText.substring(0, 1000)}${responseText.length > 1000 ? '...(truncated)' : ''}`;
                     
                     errorDiv.innerHTML = `
@@ -571,7 +676,8 @@
             } catch (error) {
                 // Display detailed error information
                 let errorMessage = `Error: ${error.message}\n\n`;
-                errorMessage += `Request URL: ${url}\n`;
+                errorMessage += `Request Method: ${requestMethod}\n`;
+                errorMessage += `Request URL: ${requestUrl}\n`;
                 errorMessage += `Time: ${new Date().toISOString()}\n`;
                 
                 // Add more details if available
@@ -760,6 +866,7 @@
         function clearResults() {
             document.getElementById('resultsDiv').style.display = 'none';
             document.getElementById('errorDiv').style.display = 'none';
+            clearRequestInfo();
             document.getElementById('valuesetSelect').value = '';
             document.getElementById('filterSystem').value = '';
             document.getElementById('filterCode').value = '';
@@ -818,9 +925,11 @@
             errorDiv.style.display = 'none';
             resultsDiv.style.display = 'none';
             sizesDiv.style.display = 'none';
+            clearRequestInfo();
             fetchBtn.disabled = true;
             
             const results = [];
+            let fallbackCount = 0;
             
             console.log('=== CHECKING ALL VALUESET SIZES ===');
             console.log('Total ValueSets to check:', options.length);
@@ -833,8 +942,11 @@
                 loadingDiv.innerHTML = `<div class="spinner"></div><div>Checking ${i + 1} of ${options.length}: ${name}</div>`;
                 
                 try {
-                    const url = `https://tx.fhir.org/r4/ValueSet/?url=http://cts.nlm.nih.gov/fhir/ValueSet/${oid}&_format=json`;
-                    const response = await fetch(url);
+                    const requestResult = await fetchExpandedValueSet(oid);
+                    const response = requestResult.response;
+                    if (requestResult.requestMethod === 'POST') {
+                        fallbackCount++;
+                    }
                     
                     if (response.ok) {
                         const data = await response.json();
@@ -913,6 +1025,12 @@
             
             sizesDiv.innerHTML = tableHtml;
             sizesDiv.style.display = 'block';
+            setRequestInfo(
+                fallbackCount > 0
+                    ? `⚠ Check All Sizes used POST fallback for ${fallbackCount} of ${options.length} ValueSets.`
+                    : `✓ Check All Sizes completed using GET $expand for all ${options.length} ValueSets.`,
+                fallbackCount > 0
+            );
             loadingDiv.style.display = 'none';
             fetchBtn.disabled = false;
         }
