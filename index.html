@@ -492,6 +492,53 @@
             requestInfoDiv.className = 'request-status';
         }
 
+        function extractOperationOutcomeDetails(payload) {
+            let outcome = payload;
+
+            if (typeof payload === 'string') {
+                try {
+                    outcome = JSON.parse(payload);
+                } catch {
+                    return '';
+                }
+            }
+
+            if (!outcome || outcome.resourceType !== 'OperationOutcome' || !Array.isArray(outcome.issue)) {
+                return '';
+            }
+
+            const issueLines = outcome.issue.map((issue, index) => {
+                const codeText = typeof issue?.code === 'object'
+                    ? issue?.code?.text || issue?.code?.display || JSON.stringify(issue.code)
+                    : issue?.code || '';
+                const diagnostics = issue?.diagnostics || '';
+                const detailsText = issue?.details?.text || '';
+                const text = issue?.code?.text || '';
+
+                const parts = [];
+                if (codeText) {
+                    parts.push(`code: ${codeText}`);
+                }
+                if (text && text !== codeText) {
+                    parts.push(`code.text: ${text}`);
+                }
+                if (detailsText) {
+                    parts.push(`details.text: ${detailsText}`);
+                }
+                if (diagnostics) {
+                    parts.push(`diagnostics: ${diagnostics}`);
+                }
+
+                return parts.length > 0
+                    ? `Issue ${index + 1}: ${parts.join(' | ')}`
+                    : `Issue ${index + 1}: (no issue details available)`;
+            });
+
+            return issueLines.length > 0
+                ? `OperationOutcome:\n${issueLines.join('\n')}`
+                : '';
+        }
+
         async function fetchExpandedValueSet(oid) {
             const valueSetUrl = getValueSetCanonicalUrl(oid);
             const getUrl = getValueSetExpandGetUrl(oid);
@@ -608,6 +655,10 @@
                     let errorDetails = `HTTP ${response.status} ${response.statusText}\n\n`;
                     errorDetails += `Request Method: ${requestMethod}\n`;
                     errorDetails += `Request URL: ${requestUrl}\n\n`;
+                    const operationOutcomeDetails = extractOperationOutcomeDetails(responseText);
+                    if (operationOutcomeDetails) {
+                        errorDetails += `${operationOutcomeDetails}\n\n`;
+                    }
                     errorDetails += `Response Body:\n${responseText.substring(0, 1000)}${responseText.length > 1000 ? '...(truncated)' : ''}`;
                     
                     errorDiv.innerHTML = `
@@ -632,6 +683,14 @@
                 } else if (data.resourceType === 'ValueSet') {
                     console.log('Response is a direct ValueSet');
                     valueSet = data;
+                } else if (data.resourceType === 'OperationOutcome') {
+                    const operationOutcomeDetails = extractOperationOutcomeDetails(data);
+                    errorDiv.innerHTML = `
+                        <strong>OperationOutcome Returned:</strong><br>
+                        <pre style="white-space: pre-wrap; margin-top: 10px; font-family: monospace; max-height: 400px; overflow: auto;">${operationOutcomeDetails || JSON.stringify(data, null, 2)}</pre>
+                    `;
+                    errorDiv.style.display = 'block';
+                    throw new Error('FHIR OperationOutcome returned instead of ValueSet expansion');
                 } else {
                     console.log('Unexpected response structure');
                 }
