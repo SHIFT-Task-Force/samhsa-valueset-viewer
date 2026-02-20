@@ -144,23 +144,6 @@ This application uses the tx.fhir.org FHIR Terminology Service:
 https://tx.fhir.org/r4/ValueSet/$expand?url=http%3A%2F%2Fcts.nlm.nih.gov%2Ffhir%2FValueSet%2F{OID}&_format=json
 ```
 
-If the GET request fails, the app automatically retries using POST:
-
-```json
-POST https://tx.fhir.org/r4/ValueSet/$expand?_format=json
-Content-Type: application/fhir+json
-
-{
-  "resourceType": "Parameters",
-  "parameter": [
-    {
-      "name": "url",
-      "valueUri": "http://cts.nlm.nih.gov/fhir/ValueSet/{OID}"
-    }
-  ]
-}
-```
-
 **Example:**
 ```
 https://tx.fhir.org/r4/ValueSet/$expand?url=http%3A%2F%2Fcts.nlm.nih.gov%2Ffhir%2FValueSet%2F2.16.840.1.113762.1.4.1142.36&_format=json

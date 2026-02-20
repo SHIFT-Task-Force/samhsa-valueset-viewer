@@ -551,13 +551,11 @@
         }
 
         async function fetchExpandedValueSet(oid) {
-            const valueSetUrl = getValueSetCanonicalUrl(oid);
             const getUrl = getValueSetExpandGetUrl(oid);
 
             let response = null;
             let requestMethod = 'GET';
             let requestUrl = getUrl;
-            let getError = null;
             const getAttempt = {
                 method: 'GET',
                 url: getUrl,
@@ -566,7 +564,6 @@
                 operationOutcomeDetails: '',
                 networkError: ''
             };
-            let postAttempt = null;
 
             try {
                 response = await fetch(getUrl);
@@ -577,61 +574,15 @@
                     getAttempt.operationOutcomeDetails = extractOperationOutcomeDetails(getResponseText);
                 }
             } catch (error) {
-                getError = error;
                 getAttempt.networkError = error.message || String(error);
-            }
-
-            if (!response || !response.ok) {
-                requestMethod = 'POST';
-                requestUrl = 'https://tx.fhir.org/r4/ValueSet/$expand?_format=json';
-                postAttempt = {
-                    method: 'POST',
-                    url: requestUrl,
-                    status: null,
-                    statusText: '',
-                    operationOutcomeDetails: '',
-                    networkError: ''
-                };
-
-                const parameters = {
-                    resourceType: 'Parameters',
-                    parameter: [
-                        {
-                            name: 'url',
-                            valueUri: valueSetUrl
-                        }
-                    ]
-                };
-
-                response = await fetch(requestUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/fhir+json',
-                        'Accept': 'application/fhir+json, application/json'
-                    },
-                    body: JSON.stringify(parameters)
-                });
-                postAttempt.status = response.status;
-                postAttempt.statusText = response.statusText;
-                if (!response.ok) {
-                    const postResponseText = await response.clone().text();
-                    postAttempt.operationOutcomeDetails = extractOperationOutcomeDetails(postResponseText);
-                }
-
-                if (getError) {
-                    console.warn('GET $expand failed before fallback to POST:', getError);
-                }
             }
 
             return {
                 response,
                 requestMethod,
                 requestUrl,
-                valueSetUrl,
                 getUrl,
-                fallbackUsed: requestMethod === 'POST',
-                getAttempt,
-                postAttempt
+                getAttempt
             };
         }
         
@@ -667,7 +618,6 @@
             console.log('=== HTTP REQUEST DETAILS ===');
             console.log('Initial Request URL:', getUrl);
             console.log('Initial Request Method: GET');
-            console.log('Fallback Request Method: POST (if GET fails)');
             console.log('Request Time:', new Date().toISOString());
             
             try {
@@ -677,12 +627,8 @@
                 requestUrl = requestResult.requestUrl;
 
                 setRequestInfo(
-                    requestResult.fallbackUsed
-                        ? (response.ok
-                            ? '⚠ Request fallback used: GET $expand failed, POST $expand succeeded.'
-                            : '⚠ Request fallback attempted: GET $expand failed, and POST $expand also failed.')
-                        : '✓ Request used primary GET $expand method.',
-                    requestResult.fallbackUsed
+                    '✓ Request used GET $expand method.',
+                    false
                 );
 
                 console.log('Final Request URL:', requestUrl);
@@ -719,17 +665,6 @@
                         errorDetails += `\n`;
                     }
 
-                    if (requestResult.postAttempt) {
-                        errorDetails += `POST Attempt: HTTP ${requestResult.postAttempt.status || 'N/A'} ${requestResult.postAttempt.statusText || ''}\n`;
-                        if (requestResult.postAttempt.networkError) {
-                            errorDetails += `POST Network Error: ${requestResult.postAttempt.networkError}\n`;
-                        }
-                        if (requestResult.postAttempt.operationOutcomeDetails) {
-                            errorDetails += `${requestResult.postAttempt.operationOutcomeDetails}\n`;
-                        }
-                        errorDetails += `\n`;
-                    }
-
                     const operationOutcomeDetails = extractOperationOutcomeDetails(responseText);
                     if (operationOutcomeDetails) {
                         errorDetails += `${operationOutcomeDetails}\n\n`;
@@ -761,13 +696,9 @@
                 } else if (data.resourceType === 'OperationOutcome') {
                     const operationOutcomeDetails = extractOperationOutcomeDetails(data);
                     const getOutcome = requestResult.getAttempt?.operationOutcomeDetails || '';
-                    const postOutcome = requestResult.postAttempt?.operationOutcomeDetails || '';
                     let combinedOutcome = '';
                     if (getOutcome) {
                         combinedOutcome += `GET Attempt\n${getOutcome}\n\n`;
-                    }
-                    if (postOutcome) {
-                        combinedOutcome += `POST Attempt\n${postOutcome}\n\n`;
                     }
                     if (operationOutcomeDetails) {
                         combinedOutcome += `Final Response\n${operationOutcomeDetails}`;
@@ -1075,8 +1006,6 @@
             fetchBtn.disabled = true;
             
             const results = [];
-            let fallbackUsedCount = 0;
-            let fallbackSuccessCount = 0;
             
             console.log('=== CHECKING ALL VALUESET SIZES ===');
             console.log('Total ValueSets to check:', options.length);
@@ -1091,12 +1020,6 @@
                 try {
                     const requestResult = await fetchExpandedValueSet(oid);
                     const response = requestResult.response;
-                    if (requestResult.fallbackUsed) {
-                        fallbackUsedCount++;
-                        if (response.ok) {
-                            fallbackSuccessCount++;
-                        }
-                    }
                     
                     if (response.ok) {
                         const data = await response.json();
@@ -1175,14 +1098,9 @@
             
             sizesDiv.innerHTML = tableHtml;
             sizesDiv.style.display = 'block';
-            const fallbackFailedCount = fallbackUsedCount - fallbackSuccessCount;
             setRequestInfo(
-                fallbackUsedCount === 0
-                    ? `✓ Check All Sizes completed using GET $expand for all ${options.length} ValueSets.`
-                    : (fallbackFailedCount === 0
-                        ? `⚠ Check All Sizes used POST fallback successfully for ${fallbackSuccessCount} of ${options.length} ValueSets.`
-                        : `⚠ Check All Sizes attempted POST fallback for ${fallbackUsedCount} ValueSets; succeeded for ${fallbackSuccessCount}, failed for ${fallbackFailedCount}.`),
-                fallbackUsedCount > 0
+                `✓ Check All Sizes completed using GET $expand for ${options.length} ValueSets.`,
+                false
             );
             loadingDiv.style.display = 'none';
             fetchBtn.disabled = false;
