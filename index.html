@@ -666,7 +666,8 @@
                     }
 
                     const operationOutcomeDetails = extractOperationOutcomeDetails(responseText);
-                    if (operationOutcomeDetails) {
+                    const getAttemptOutcomeDetails = requestResult.getAttempt?.operationOutcomeDetails || '';
+                    if (operationOutcomeDetails && operationOutcomeDetails !== getAttemptOutcomeDetails) {
                         errorDetails += `${operationOutcomeDetails}\n\n`;
                     }
                     errorDetails += `Response Body:\n${responseText.substring(0, 1000)}${responseText.length > 1000 ? '...(truncated)' : ''}`;
