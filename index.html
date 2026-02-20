@@ -626,11 +626,6 @@
                 requestMethod = requestResult.requestMethod;
                 requestUrl = requestResult.requestUrl;
 
-                setRequestInfo(
-                    '✓ Request used GET $expand method.',
-                    false
-                );
-
                 console.log('Final Request URL:', requestUrl);
                 console.log('Final Request Method:', requestMethod);
                 
@@ -1100,7 +1095,7 @@
             sizesDiv.innerHTML = tableHtml;
             sizesDiv.style.display = 'block';
             setRequestInfo(
-                `✓ Check All Sizes completed using GET $expand for ${options.length} ValueSets.`,
+                `✓ Check All Sizes analysis completed for ${options.length} ValueSets.`,
                 false
             );
             loadingDiv.style.display = 'none';
