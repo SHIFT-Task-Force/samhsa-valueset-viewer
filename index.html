@@ -550,6 +550,33 @@
                 : '';
         }
 
+        function extractOperationOutcomeIssueDetailsText(payload) {
+            let outcome = payload;
+
+            if (typeof payload === 'string') {
+                try {
+                    outcome = JSON.parse(payload);
+                } catch {
+                    return '';
+                }
+            }
+
+            if (!outcome || outcome.resourceType !== 'OperationOutcome' || !Array.isArray(outcome.issue)) {
+                return '';
+            }
+
+            const details = outcome.issue
+                .map(issue => issue?.details?.text)
+                .filter(text => typeof text === 'string' && text.trim().length > 0)
+                .map(text => text.trim());
+
+            if (details.length === 0) {
+                return '';
+            }
+
+            return [...new Set(details)].join(' | ');
+        }
+
         async function fetchExpandedValueSet(oid) {
             const getUrl = getValueSetExpandGetUrl(oid);
 
@@ -1025,6 +1052,12 @@
                             valueSet = data.entry[0].resource;
                         } else if (data.resourceType === 'ValueSet') {
                             valueSet = data;
+                        } else if (data.resourceType === 'OperationOutcome') {
+                            const detailsText = extractOperationOutcomeIssueDetailsText(data);
+                            const errorText = detailsText ? `OperationOutcome: ${detailsText}` : 'OperationOutcome returned';
+                            results.push({ oid, name, count: 0, error: errorText });
+                            console.log(`${name}: ${errorText}`);
+                            continue;
                         }
                         
                         if (valueSet && valueSet.expansion && valueSet.expansion.contains) {
@@ -1036,8 +1069,13 @@
                             console.log(`${name}: No expansion found`);
                         }
                     } else {
-                        results.push({ oid, name, count: 0, error: `HTTP ${response.status}` });
-                        console.log(`${name}: HTTP ${response.status}`);
+                        const responseText = await response.text();
+                        const detailsText = extractOperationOutcomeIssueDetailsText(responseText);
+                        const errorText = detailsText
+                            ? `HTTP ${response.status} - ${detailsText}`
+                            : `HTTP ${response.status}`;
+                        results.push({ oid, name, count: 0, error: errorText });
+                        console.log(`${name}: ${errorText}`);
                     }
                 } catch (error) {
                     results.push({ oid, name, count: 0, error: error.message });
@@ -1050,6 +1088,10 @@
             
             // Sort by count descending
             results.sort((a, b) => b.count - a.count);
+
+            const successfulResults = results.filter(r => !r.error);
+            const failedResults = results.filter(r => !!r.error);
+            const hadErrors = failedResults.length > 0;
             
             console.log('\n=== RESULTS SORTED BY SIZE ===');
             results.forEach((r, i) => {
@@ -1057,11 +1099,29 @@
             });
             
             // Display results in a table
-            const largestMsg = `<div style="background: #d4edda; color: #155724; padding: 15px; margin: 20px 30px; border-radius: 6px; border-left: 4px solid #28a745;">
-                <strong>✓ Analysis Complete!</strong><br>
-                Largest ValueSet: ${results[0].name.replace(results[0].oid + ' - ', '')}<br>
-                Code Count: ${results[0].count.toLocaleString()}
-            </div>`;
+            let largestMsg = '';
+            if (successfulResults.length > 0) {
+                const largestSuccessful = successfulResults[0];
+                if (hadErrors) {
+                    largestMsg = `<div style="background: #fff3cd; color: #856404; padding: 15px; margin: 20px 30px; border-radius: 6px; border-left: 4px solid #ffc107;">
+                        <strong>⚠ Analysis Complete with Errors</strong><br>
+                        ${failedResults.length} of ${options.length} ValueSets returned errors and were excluded from largest-size ranking.<br>
+                        Largest successful ValueSet returned: ${largestSuccessful.name.replace(largestSuccessful.oid + ' - ', '')}<br>
+                        Code Count (largest successful result): ${largestSuccessful.count.toLocaleString()}
+                    </div>`;
+                } else {
+                    largestMsg = `<div style="background: #d4edda; color: #155724; padding: 15px; margin: 20px 30px; border-radius: 6px; border-left: 4px solid #28a745;">
+                        <strong>✓ Analysis Complete</strong><br>
+                        Largest ValueSet: ${largestSuccessful.name.replace(largestSuccessful.oid + ' - ', '')}<br>
+                        Code Count: ${largestSuccessful.count.toLocaleString()}
+                    </div>`;
+                }
+            } else {
+                largestMsg = `<div style="background: #f8d7da; color: #721c24; padding: 15px; margin: 20px 30px; border-radius: 6px; border-left: 4px solid #dc3545;">
+                    <strong>✗ Analysis Failed</strong><br>
+                    No ValueSet sizes could be determined because all ${options.length} requests returned errors.
+                </div>`;
+            }
             
             const tableHtml = `
                 ${largestMsg}
@@ -1094,10 +1154,20 @@
             
             sizesDiv.innerHTML = tableHtml;
             sizesDiv.style.display = 'block';
-            setRequestInfo(
-                `✓ Check All Sizes analysis completed for ${options.length} ValueSets.`,
-                false
-            );
+            if (successfulResults.length > 0) {
+                const largestSuccessful = successfulResults[0];
+                setRequestInfo(
+                    hadErrors
+                        ? `⚠ Check All Sizes completed with errors: ${successfulResults.length} succeeded, ${failedResults.length} failed. Largest successful result: ${largestSuccessful.count.toLocaleString()} codes.`
+                        : `✓ Check All Sizes analysis completed for ${options.length} ValueSets. Largest ValueSet: ${largestSuccessful.count.toLocaleString()} codes.`,
+                    hadErrors
+                );
+            } else {
+                setRequestInfo(
+                    `✗ Check All Sizes failed: all ${options.length} requests returned errors.`,
+                    true
+                );
+            }
             loadingDiv.style.display = 'none';
             fetchBtn.disabled = false;
         }
