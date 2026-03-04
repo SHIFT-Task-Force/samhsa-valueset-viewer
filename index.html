@@ -1013,7 +1013,9 @@
         
         async function checkAllSizes() {
             const select = document.getElementById('valuesetSelect');
-            const options = Array.from(select.options).filter(opt => opt.value !== '');
+            const allValueSetOptions = Array.from(select.options).filter(opt => opt.value !== '');
+            const options = allValueSetOptions.filter(opt => !/undefined/i.test(opt.textContent || ''));
+            const skippedUndefinedCount = allValueSetOptions.length - options.length;
             
             const loadingDiv = document.getElementById('loadingDiv');
             const errorDiv = document.getElementById('errorDiv');
@@ -1032,6 +1034,9 @@
             
             console.log('=== CHECKING ALL VALUESET SIZES ===');
             console.log('Total ValueSets to check:', options.length);
+            if (skippedUndefinedCount > 0) {
+                console.log('Skipped Undefined ValueSets:', skippedUndefinedCount);
+            }
             
             for (let i = 0; i < options.length; i++) {
                 const option = options[i];
@@ -1105,13 +1110,14 @@
                 if (hadErrors) {
                     largestMsg = `<div style="background: #fff3cd; color: #856404; padding: 15px; margin: 20px 30px; border-radius: 6px; border-left: 4px solid #ffc107;">
                         <strong>⚠ Analysis Complete with Errors</strong><br>
-                        ${failedResults.length} of ${options.length} ValueSets returned errors and were excluded from largest-size ranking.<br>
+                        ${failedResults.length} of ${options.length} ValueSets returned errors and were excluded from largest-size ranking.${skippedUndefinedCount > 0 ? `<br>${skippedUndefinedCount} Undefined ValueSets were skipped.` : ''}<br>
                         Largest successful ValueSet returned: ${largestSuccessful.name.replace(largestSuccessful.oid + ' - ', '')}<br>
                         Code Count (largest successful result): ${largestSuccessful.count.toLocaleString()}
                     </div>`;
                 } else {
                     largestMsg = `<div style="background: #d4edda; color: #155724; padding: 15px; margin: 20px 30px; border-radius: 6px; border-left: 4px solid #28a745;">
                         <strong>✓ Analysis Complete</strong><br>
+                        ${skippedUndefinedCount > 0 ? `${skippedUndefinedCount} Undefined ValueSets were skipped.<br>` : ''}
                         Largest ValueSet: ${largestSuccessful.name.replace(largestSuccessful.oid + ' - ', '')}<br>
                         Code Count: ${largestSuccessful.count.toLocaleString()}
                     </div>`;
@@ -1119,7 +1125,7 @@
             } else {
                 largestMsg = `<div style="background: #f8d7da; color: #721c24; padding: 15px; margin: 20px 30px; border-radius: 6px; border-left: 4px solid #dc3545;">
                     <strong>✗ Analysis Failed</strong><br>
-                    No ValueSet sizes could be determined because all ${options.length} requests returned errors.
+                    No ValueSet sizes could be determined because all ${options.length} requests returned errors.${skippedUndefinedCount > 0 ? `<br>${skippedUndefinedCount} Undefined ValueSets were skipped.` : ''}
                 </div>`;
             }
             
@@ -1158,13 +1164,13 @@
                 const largestSuccessful = successfulResults[0];
                 setRequestInfo(
                     hadErrors
-                        ? `⚠ Check All Sizes completed with errors: ${successfulResults.length} succeeded, ${failedResults.length} failed. Largest successful result: ${largestSuccessful.count.toLocaleString()} codes.`
-                        : `✓ Check All Sizes analysis completed for ${options.length} ValueSets. Largest ValueSet: ${largestSuccessful.count.toLocaleString()} codes.`,
+                        ? `⚠ Check All Sizes completed with errors: ${successfulResults.length} succeeded, ${failedResults.length} failed.${skippedUndefinedCount > 0 ? ` ${skippedUndefinedCount} Undefined ValueSets skipped.` : ''} Largest successful result: ${largestSuccessful.count.toLocaleString()} codes.`
+                        : `✓ Check All Sizes analysis completed for ${options.length} ValueSets.${skippedUndefinedCount > 0 ? ` ${skippedUndefinedCount} Undefined ValueSets skipped.` : ''} Largest ValueSet: ${largestSuccessful.count.toLocaleString()} codes.`,
                     hadErrors
                 );
             } else {
                 setRequestInfo(
-                    `✗ Check All Sizes failed: all ${options.length} requests returned errors.`,
+                    `✗ Check All Sizes failed: all ${options.length} requests returned errors.${skippedUndefinedCount > 0 ? ` ${skippedUndefinedCount} Undefined ValueSets skipped.` : ''}`,
                     true
                 );
             }
