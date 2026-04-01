@@ -448,6 +448,7 @@
         <div class="info">
             <h3>ℹ️ About This Tool</h3>
             <p>This tool retrieves and displays expanded FHIR ValueSets from tx.fhir.org. Select a SAMHSA ValueSet from the dropdown above and click "Fetch ValueSet" to view its contents.</p>
+            <p style="margin-top: 10px;"><strong>Browser Security Note:</strong> If requests fail with a Network/CORS error, that usually means tx.fhir.org is enforcing a good cross-origin security policy. The server may still be working correctly even when this browser app cannot read the response.</p>
             <p style="margin-top: 10px;"><strong>Features:</strong></p>
             <ul style="margin-left: 20px; margin-top: 5px;">
                 <li>View all codes in a ValueSet with their system, version (shortened for readability), code, active status, and display name</li>
@@ -669,6 +670,7 @@
                     }
 
                     errorDetails += '\nThis usually indicates a network-level browser failure (often CORS blocking, TLS, or connectivity), not an HTTP status response.';
+                    errorDetails += '\n\nThis can happen because tx.fhir.org is enforcing a good cross-origin security policy for browser clients.';
 
                     errorDiv.innerHTML = `
                         <strong>Network / CORS Error Details:</strong><br>
@@ -815,6 +817,7 @@
                     errorMessage += '\n\nNote: You appear to be offline.';
                 } else if (error.name === 'TypeError') {
                     errorMessage += '\n\nNote: This may be a network error or CORS issue.';
+                    errorMessage += '\nThis can occur when tx.fhir.org enforces a good cross-origin security policy and blocks browser-origin reads.';
                 }
                 
                 if (!errorDiv.innerHTML) {  // Only set if not already set above
@@ -1073,6 +1076,13 @@
                 try {
                     const requestResult = await fetchExpandedValueSet(oid);
                     const response = requestResult.response;
+
+                    if (!response) {
+                        const networkError = requestResult.getAttempt?.networkError || 'No HTTP response was returned by fetch()';
+                        results.push({ oid, name, count: 0, error: `Network/CORS error: ${networkError}` });
+                        console.log(`${name}: Network/CORS error - ${networkError}`);
+                        continue;
+                    }
                     
                     if (response.ok) {
                         const data = await response.json();
