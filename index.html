@@ -653,6 +653,31 @@
                 requestMethod = requestResult.requestMethod;
                 requestUrl = requestResult.requestUrl;
 
+                if (!response) {
+                    let errorDetails = 'No HTTP response was received from the terminology server.\n\n';
+                    errorDetails += `Request Method: ${requestMethod}\n`;
+                    errorDetails += `Request URL: ${requestUrl}\n\n`;
+
+                    if (requestResult.getAttempt) {
+                        errorDetails += `GET Attempt: HTTP ${requestResult.getAttempt.status || 'N/A'} ${requestResult.getAttempt.statusText || ''}\n`;
+                        if (requestResult.getAttempt.networkError) {
+                            errorDetails += `GET Network Error: ${requestResult.getAttempt.networkError}\n`;
+                        }
+                        if (requestResult.getAttempt.operationOutcomeDetails) {
+                            errorDetails += `${requestResult.getAttempt.operationOutcomeDetails}\n`;
+                        }
+                    }
+
+                    errorDetails += '\nThis usually indicates a network-level browser failure (often CORS blocking, TLS, or connectivity), not an HTTP status response.';
+
+                    errorDiv.innerHTML = `
+                        <strong>Network / CORS Error Details:</strong><br>
+                        <pre style="white-space: pre-wrap; margin-top: 10px; font-family: monospace; max-height: 400px; overflow: auto;">${errorDetails}</pre>
+                    `;
+                    errorDiv.style.display = 'block';
+                    throw new Error(requestResult.getAttempt?.networkError || 'No HTTP response was returned by fetch()');
+                }
+
                 console.log('Final Request URL:', requestUrl);
                 console.log('Final Request Method:', requestMethod);
                 
