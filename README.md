@@ -2,7 +2,7 @@
 
 A web application for exploring and analyzing FHIR ValueSets from SAMHSA using tx.fhir.org.
 
-🔗 **Live Demo**: [https://shift-task-force.github.io/samhsa-valueset-viewer/](https://shift-task-force.github.io/samhsa-valueset-viewer/)
+This project now runs behind a Dockerized reverse proxy. Browser requests go to a same-origin `/fhir/` endpoint, and the container proxies those requests to tx.fhir.org server-to-server to avoid browser CORS restrictions.
 
 ![SAMHSA ValueSet Viewer](screenshot.png)
 
@@ -15,32 +15,59 @@ A web application for exploring and analyzing FHIR ValueSets from SAMHSA using t
 - 📈 **Statistics** - View summary statistics including total codes, active/inactive counts, and code systems
 - 📥 **Export** - Download data in CSV or JSON format
 - 📱 **Responsive Design** - Works on desktop and mobile devices
+- 🐳 **Docker-Ready** - Nginx container serves the UI and proxies `/fhir/*` to tx.fhir.org
 
 ## Quick Start
 
-### View Online
-
-Visit [https://shift-task-force.github.io/samhsa-valueset-viewer/](https://shift-task-force.github.io/samhsa-valueset-viewer/) to use the app immediately.
-
-### Run Locally
+### Run with Docker Compose
 
 1. Clone this repository:
+
 ```bash
 git clone https://github.com/SHIFT-Task-Force/samhsa-valueset-viewer.git
 cd samhsa-valueset-viewer
 ```
 
-2. Open `index.html` in your web browser, or use a local server:
+1. Build and start the container:
 
 ```bash
-# Using Python 3
-python -m http.server 8000
-
-# Using Node.js http-server
-npx http-server -p 8000
+docker compose up --build
 ```
 
-Then open your browser to `http://localhost:8000`
+1. Open your browser to:
+
+```text
+http://localhost:8080
+```
+
+### Run with Docker (without Compose)
+
+```bash
+docker build -t samhsa-valueset-viewer .
+docker run --rm -p 8080:80 --name samhsa-valueset-viewer samhsa-valueset-viewer
+```
+
+Then open `http://localhost:8080`.
+
+### Why Not GitHub Pages?
+
+GitHub Pages serves static assets only and cannot provide the reverse proxy required for `/fhir/*` requests. Since tx.fhir.org no longer allows browser cross-origin reads for this app's origin, the containerized proxy is required.
+
+## Deployment
+
+### Docker Host / VM Deployment
+
+1. Copy this repository to your host.
+2. Run `docker compose up -d --build`.
+3. Publish port `8080` directly, or place a TLS reverse proxy in front of it.
+
+### Example: Reverse Proxy at the Edge
+
+If you already have Nginx/Traefik/Caddy at your edge, route traffic for your domain to this container on port `8080`.
+
+### Health Check
+
+The container includes a Docker `HEALTHCHECK` against `/` so orchestrators can detect unhealthy instances.
 
 ## Usage
 
@@ -56,9 +83,11 @@ Then open your browser to `http://localhost:8000`
 The application includes all SAMHSA C2S (Consent2Share) ValueSets covering:
 
 ### Mental Health
+
 - **Mental Health Disorders** (ICD10CM, ICD9CM, LOINC, RXNORM, SNOMED-CT)
 
 ### Substance Use Disorders
+
 - **Alcohol Use Disorders** (SNOMEDCD, ICD9CM, RXNORM, ICD10CM, LOINC)
 - **Amphetamine Use Disorders** (HCPCS, ICD10CM, ICD9CM, LOINC, RXNORM, SNOMED-CT)
 - **Cannabis Use Disorders** (ICD9CM, ICD10CM, LOINC, SNOMED-CT)
@@ -71,81 +100,47 @@ The application includes all SAMHSA C2S (Consent2Share) ValueSets covering:
 - **General Substance Use Information** (HCPCS, LOINC, RXNORM)
 
 ### HIV/AIDS
+
 - **HIV/AIDS Information** (HCPCS, ICD9CM, LOINC, RXNORM, SNOMED-CT, CPT)
 
 ### Sexual Health
+
 - **Sexuality and Reproductive Health** (ICD9CM, RXNORM)
 
 ### Test ValueSets
+
 - **Test Alcohol Use Disorders** (SNOMED-CT)
 - **Test HIV/AIDS Information** (SNOMEDCD)
 
-## Deployment to GitHub Pages
-
-### Automatic Deployment (GitHub Settings)
-
-1. Push this repository to GitHub
-2. Go to **Settings** > **Pages**
-3. Under "Source", select:
-   - Branch: `main`
-   - Folder: `/ (root)`
-4. Click **Save**
-5. Your site will be published at `https://[your-username].github.io/samhsa-valueset-viewer/`
-
-### Using GitHub Actions
-
-Create `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to GitHub Pages
-
-on:
-  push:
-    branches: [ main ]
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-      
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: '.'
-      
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
-```
-
 ## Technical Details
 
-- **Framework**: Vanilla JavaScript (no dependencies)
+- **Framework**: Vanilla JavaScript frontend served by Nginx
 - **Styling**: Pure CSS with modern features
-- **API**: tx.fhir.org FHIR R4 Terminology Service
+- **Runtime**: Docker container
+- **Proxy**: Nginx reverse proxy (`/fhir/*` -> `https://tx.fhir.org/*`)
+- **API**: tx.fhir.org FHIR R4 Terminology Service (via same-origin proxy)
 - **Data Format**: FHIR ValueSet resources with expansions
 - **Browser Support**: All modern browsers (Chrome, Firefox, Safari, Edge)
 
 ## API Information
 
-This application uses the tx.fhir.org FHIR Terminology Service:
+This application uses a local proxy endpoint that forwards to tx.fhir.org:
 
-**Endpoint Pattern:**
-```
-https://tx.fhir.org/r4/ValueSet/$expand?url=http%3A%2F%2Fcts.nlm.nih.gov%2Ffhir%2FValueSet%2F{OID}&_format=json
+**Application Endpoint Pattern:**
+
+```text
+/fhir/r4/ValueSet/$expand?url=http%3A%2F%2Fcts.nlm.nih.gov%2Ffhir%2FValueSet%2F{OID}&_format=json
 ```
 
 **Example:**
+
+```text
+/fhir/r4/ValueSet/$expand?url=http%3A%2F%2Fcts.nlm.nih.gov%2Ffhir%2FValueSet%2F2.16.840.1.113762.1.4.1142.36&_format=json
 ```
+
+The container then proxies this to:
+
+```text
 https://tx.fhir.org/r4/ValueSet/$expand?url=http%3A%2F%2Fcts.nlm.nih.gov%2Ffhir%2FValueSet%2F2.16.840.1.113762.1.4.1142.36&_format=json
 ```
 
@@ -157,6 +152,7 @@ https://tx.fhir.org/r4/ValueSet/$expand?url=http%3A%2F%2Fcts.nlm.nih.gov%2Ffhir%
 ## About SAMHSA C2S
 
 The Substance Abuse and Mental Health Services Administration (SAMHSA) Consent2Share (C2S) ValueSets are used to identify sensitive healthcare information related to:
+
 - Mental health and psychiatric care
 - Substance use disorders
 - HIV/AIDS
@@ -181,6 +177,7 @@ This project is licensed under the same license as the [SLS-ValueSets](https://g
 ## Support
 
 For issues, questions, or suggestions:
+
 - 🐛 [Open an issue](https://github.com/SHIFT-Task-Force/samhsa-valueset-viewer/issues)
 - 💬 [Start a discussion](https://github.com/SHIFT-Task-Force/samhsa-valueset-viewer/discussions)
 

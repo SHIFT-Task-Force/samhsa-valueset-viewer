@@ -447,8 +447,8 @@
         
         <div class="info">
             <h3>ℹ️ About This Tool</h3>
-            <p>This tool retrieves and displays expanded FHIR ValueSets from tx.fhir.org. Select a SAMHSA ValueSet from the dropdown above and click "Fetch ValueSet" to view its contents.</p>
-            <p style="margin-top: 10px;"><strong>Browser Security Note:</strong> If requests fail with a Network/CORS error, that usually means tx.fhir.org is enforcing a good cross-origin security policy. The server may still be working correctly even when this browser app cannot read the response.</p>
+            <p>This tool retrieves and displays expanded FHIR ValueSets from tx.fhir.org through a local reverse proxy. Select a SAMHSA ValueSet from the dropdown above and click "Fetch ValueSet" to view its contents.</p>
+            <p style="margin-top: 10px;"><strong>Browser Security Note:</strong> Requests are sent to this app's local <code>/fhir/</code> endpoint and proxied server-to-server to tx.fhir.org, avoiding browser-side CORS limitations.</p>
             <p style="margin-top: 10px;"><strong>Features:</strong></p>
             <ul style="margin-left: 20px; margin-top: 5px;">
                 <li>View all codes in a ValueSet with their system, version (shortened for readability), code, active status, and display name</li>
@@ -461,7 +461,7 @@
                 <li>Handles both FHIR Bundle and direct ValueSet responses</li>
             </ul>
             <p style="margin-top: 15px; font-size: 0.9em; color: #6c757d;">
-                <strong>Technical Details:</strong> This application was developed by GitHub Copilot (Claude Sonnet 4.5) to provide an intuitive interface for exploring SAMHSA FHIR ValueSets, at the direction of John Moehrke of <a href="https://MoehrkeResearch.com">Moehrke Research LLC</a>. It uses the tx.fhir.org FHIR terminology server to retrieve ValueSet expansions via HTTPS requests with JSON formatting. The  <a href="https://github.com/SHIFT-Task-Force/samhsa-valueset-viewer">Open Source code</a> is available on GitHub.
+                <strong>Technical Details:</strong> This application was developed by GitHub Copilot to provide an intuitive interface for exploring SAMHSA FHIR ValueSets, at the direction of John Moehrke of <a href="https://MoehrkeResearch.com">Moehrke Research LLC</a>. It uses a same-origin reverse proxy endpoint (<code>/fhir/</code>) to query the tx.fhir.org FHIR terminology server and retrieve ValueSet expansions with JSON formatting. The <a href="https://github.com/SHIFT-Task-Force/samhsa-valueset-viewer">Open Source code</a> is available on GitHub.
             </p>
         </div>
     </div>
@@ -476,7 +476,7 @@
 
         function getValueSetExpandGetUrl(oid) {
             const valueSetUrl = getValueSetCanonicalUrl(oid);
-            return `https://tx.fhir.org/r4/ValueSet/$expand?url=${encodeURIComponent(valueSetUrl)}&_format=json`;
+            return `/fhir/r4/ValueSet/$expand?url=${encodeURIComponent(valueSetUrl)}&_format=json`;
         }
 
         function setRequestInfo(message, isFallback = false) {
@@ -669,8 +669,7 @@
                         }
                     }
 
-                    errorDetails += '\nThis usually indicates a network-level browser failure (often CORS blocking, TLS, or connectivity), not an HTTP status response.';
-                    errorDetails += '\n\nThis can happen because tx.fhir.org is enforcing a good cross-origin security policy for browser clients.';
+                    errorDetails += '\nThis usually indicates a network-level failure between the local reverse proxy and tx.fhir.org (TLS, DNS, connectivity, or upstream outage), not an HTTP status response.';
 
                     errorDiv.innerHTML = `
                         <strong>Network / CORS Error Details:</strong><br>
@@ -816,8 +815,8 @@
                 if (!navigator.onLine) {
                     errorMessage += '\n\nNote: You appear to be offline.';
                 } else if (error.name === 'TypeError') {
-                    errorMessage += '\n\nNote: This may be a network error or CORS issue.';
-                    errorMessage += '\nThis can occur when tx.fhir.org enforces a good cross-origin security policy and blocks browser-origin reads.';
+                    errorMessage += '\n\nNote: This may be a network or proxy connectivity issue.';
+                    errorMessage += '\nWhen running in Docker, browser CORS is bypassed via the local /fhir/ reverse proxy.';
                 }
                 
                 if (!errorDiv.innerHTML) {  // Only set if not already set above
